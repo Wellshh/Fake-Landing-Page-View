@@ -14,20 +14,36 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Set up Python
+      id: setup-python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
-        cache: 'pip'
+
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+      with:
+        version: latest
+        virtualenvs-create: true
+        virtualenvs-in-project: true
+
+    - name: Load cached venv
+      id: cached-poetry-dependencies
+      uses: actions/cache@v4
+      with:
+        path: .venv
+        key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
     - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+      if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+      run: poetry install --no-interaction --no-root
+
+    - name: Install project
+      run: poetry install --no-interaction
 
     - name: Install Playwright browsers
       run: |
-        playwright install chromium
-        playwright install-deps chromium
+        poetry run playwright install chromium
+        poetry run playwright install-deps chromium
 
     - name: Run Traffic Bot
       env:
@@ -35,9 +51,9 @@ jobs:
         PROXY_USER: ${{ secrets.PROXY_USER }}
         PROXY_PASS: ${{ secrets.PROXY_PASS }}
         TARGET_URL: ${{ secrets.TARGET_URL }}
-        PROXY_COUNTRIES: ${{secrets.PROXY_COUNTRIES}}
+        PROXY_COUNTRIES: ${{ secrets.PROXY_COUNTRIES }}
       run: |
-        python main.py
+        poetry run fake-analytics run --url "$TARGET_URL"
         
     - name: Upload Screenshots (on failure or success)
       if: always()
