@@ -108,4 +108,3 @@ esac
 # Print success message
 echo ""
 print_success "Tests completed!"
-

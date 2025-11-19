@@ -203,15 +203,15 @@ from src.fake_analytics.config import Config
 @pytest.mark.unit
 class TestMyFeature:
     """Test my new feature"""
-    
+
     def test_feature_works(self):
         """Test: Feature works as expected"""
         # Arrange
         config = Config()
-        
+
         # Act
         result = config.some_method()
-        
+
         # Assert
         assert result is not None
 ```
@@ -226,7 +226,7 @@ from src.fake_analytics.actions import human_type
 @pytest.mark.asyncio
 class TestAsyncFeature:
     """Test async feature"""
-    
+
     async def test_async_function(self, mock_page):
         """Test: Async function completes"""
         await human_type(mock_page, "#input", "text")
@@ -241,7 +241,7 @@ import pytest
 @pytest.mark.unit
 class TestParametrized:
     """Test with parameters"""
-    
+
     @pytest.mark.parametrize(
         "input_value,expected",
         [
@@ -319,4 +319,3 @@ pytest --cov=src/fake_analytics --cov-report=term-missing
 - [pytest-asyncio documentation](https://pytest-asyncio.readthedocs.io/)
 - [pytest-cov documentation](https://pytest-cov.readthedocs.io/)
 - [Playwright Python documentation](https://playwright.dev/python/)
-

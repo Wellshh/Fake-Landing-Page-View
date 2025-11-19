@@ -362,9 +362,7 @@ class TestTrafficBotBrowserConfiguration:
                     assert mock_playwright.chromium.launch_persistent_context.called
 
     @pytest.mark.asyncio
-    async def test_traffic_bot_cleans_up_temp_directory(
-        self, basic_config, mock_playwright
-    ):
+    async def test_traffic_bot_cleans_up_temp_directory(self, basic_config, mock_playwright):
         """Test: TrafficBot cleans up temporary profile directory"""
         bot = TrafficBot(basic_config)
 

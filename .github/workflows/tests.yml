@@ -26,7 +26,7 @@ jobs:
         python-version: ${{ matrix.python-version }}
 
     - name: Cache dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           ~/.cache/pip
@@ -75,7 +75,7 @@ jobs:
 
     - name: Upload coverage HTML report
       if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: coverage-report
         path: htmlcov/
@@ -111,4 +111,3 @@ jobs:
     - name: Run mypy type checking
       run: |
         poetry run mypy src/ || echo "Mypy check skipped (not installed)"
-
