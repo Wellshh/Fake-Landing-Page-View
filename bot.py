@@ -1,4 +1,5 @@
 import asyncio
+import json
 import random
 import os
 import shutil
@@ -23,7 +24,14 @@ class TrafficBot:
             os="linux"
         )  # Force linux/desktop UA to avoid mobile inconsistencies
         self.referers = [
-            "https://www.google.com/",  # Strong trust signal
+            "https://www.facebook.com/",  # Primary source (weighted)
+            "https://www.facebook.com/",  # Repeat for higher probability
+            "https://www.facebook.com/",  # Repeat for higher probability
+            "https://www.reddit.com/",
+            "https://twitter.com/",
+            "https://x.com/",
+            "https://www.linkedin.com/",
+            "https://www.google.com/",  # Direct search
         ]
         self.email_domains = [
             "gmail.com",
@@ -190,24 +198,69 @@ class TrafficBot:
 
         return True
 
-    async def check_proxy_ip(self, page: Page):
-        """Verify proxy IP connection"""
+    async def check_proxy_ip(self, page: Page) -> dict:
+        """Verify proxy IP connection and return geo info"""
         print("Verifying proxy connection...")
+        geo_info = {"country": "US", "timezone": "America/New_York", "locale": "en-US"}
         try:
-            # Try Bright Data test page first
+            # Try ip-api.com for detailed geo info
             response = await page.goto(
-                "http://lumtest.com/myip.json", timeout=60000, wait_until="commit"
+                "http://ip-api.com/json/?fields=status,country,countryCode,timezone,query",
+                timeout=60000,
+                wait_until="commit",
             )
             if response and response.ok:
                 content = await response.text()
-                print(f"Current IP Info (Bright Data): {content}")
+                geo_data = json.loads(content)
+                if geo_data.get("status") == "success":
+                    country_code = geo_data.get("countryCode", "US")
+                    timezone = geo_data.get("timezone", "America/New_York")
+                    country = geo_data.get("country", "United States")
+                    ip = geo_data.get("query", "unknown")
+
+                    print(f"Proxy IP: {ip}")
+                    print(f"Detected Location: {country} ({country_code})")
+                    print(f"Timezone: {timezone}")
+
+                    # Map country to locale
+                    locale_map = {
+                        "US": "en-US",
+                        "GB": "en-GB",
+                        "CA": "en-CA",
+                        "AU": "en-AU",
+                        "SG": "en-SG",
+                        "MY": "en-MY",
+                        "IN": "en-IN",
+                        "DE": "de-DE",
+                        "FR": "fr-FR",
+                        "ES": "es-ES",
+                        "IT": "it-IT",
+                        "JP": "ja-JP",
+                        "KR": "ko-KR",
+                        "CN": "zh-CN",
+                        "TW": "zh-TW",
+                        "BR": "pt-BR",
+                        "MX": "es-MX",
+                        "NL": "nl-NL",
+                        "SE": "sv-SE",
+                    }
+
+                    geo_info = {
+                        "country": country_code,
+                        "country_name": country,
+                        "timezone": timezone,
+                        "locale": locale_map.get(country_code, "en-US"),
+                        "ip": ip,
+                    }
             else:
-                # Fallback
+                # Fallback to simple IP check
                 await page.goto("https://api.ipify.org?format=json", timeout=60000)
                 content = await page.content()
                 print(f"Current IP Info (ipify): {await page.inner_text('body')}")
         except Exception as e:
             print(f"Failed to verify IP: {e}")
+
+        return geo_info
 
     def setup_network_logging(self, page: Page):
         """Log interesting network requests to debug analytics blocking"""
@@ -257,8 +310,8 @@ class TrafficBot:
         Config.validate()
 
         proxy_config = Config.get_proxy_config()
-        # TEMPORARY: Disable proxy to test local IP
-        use_proxy = False
+        # Enable proxy for production use
+        use_proxy = True
 
         if proxy_config and use_proxy:
             masked = (
@@ -271,6 +324,7 @@ class TrafficBot:
             )
         else:
             print("WARNING: Running without proxy (Local IP mode)")
+            use_proxy = False  # Force disable if no proxy config
 
         referer = random.choice(self.referers)
 
@@ -295,11 +349,42 @@ class TrafficBot:
             is_ci = os.getenv("CI") == "true"
             headless_mode = is_ci
 
+            # Default geo settings
+            geo_info = {
+                "country": "US",
+                "timezone": "America/New_York",
+                "locale": "en-US",
+            }
+
+            # If using proxy, detect IP location first to set correct timezone/locale
+            if use_proxy and proxy_config:
+                print("Detecting proxy IP location...")
+                temp_browser = await p.chromium.launch(headless=True, args=args)
+                temp_context = await temp_browser.new_context(
+                    proxy={
+                        "server": proxy_config["server"],
+                        "username": proxy_config["username"],
+                        "password": proxy_config["password"],
+                    }
+                )
+                temp_page = await temp_context.new_page()
+                try:
+                    geo_info = await self.check_proxy_ip(temp_page)
+                finally:
+                    await temp_context.close()
+                    await temp_browser.close()
+
+            print(
+                f"Using timezone: {geo_info.get('timezone', 'America/New_York')}, locale: {geo_info.get('locale', 'en-US')}"
+            )
+
             launch_kwargs = {
                 "headless": headless_mode,
                 "args": args,
                 "user_agent": user_agent,
                 "viewport": {"width": 1440, "height": 900},  # Standard Mac resolution
+                "locale": geo_info.get("locale", "en-US"),
+                "timezone_id": geo_info.get("timezone", "America/New_York"),
             }
 
             if use_proxy and proxy_config:
@@ -325,6 +410,34 @@ class TrafficBot:
                 # Set extra headers manually since persistent context constructor doesn't take extra_http_headers easily in all versions
                 await page.set_extra_http_headers({"Referer": referer, "DNT": "0"})
 
+                # CRITICAL: Disable Geolocation API to prevent location leakage
+                await page.add_init_script(
+                    """
+                    // Override geolocation API
+                    if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition = function(success, error) {
+                            if (error) error({ code: 1, message: "User denied Geolocation" });
+                        };
+                        navigator.geolocation.watchPosition = function(success, error) {
+                            if (error) error({ code: 1, message: "User denied Geolocation" });
+                            return 1;
+                        };
+                    }
+                    
+                    // Disable WebRTC to prevent IP leakage
+                    const noop = () => {};
+                    if (window.RTCPeerConnection) {
+                        window.RTCPeerConnection = undefined;
+                    }
+                    if (window.webkitRTCPeerConnection) {
+                        window.webkitRTCPeerConnection = undefined;
+                    }
+                    if (window.mozRTCPeerConnection) {
+                        window.mozRTCPeerConnection = undefined;
+                    }
+                """
+                )
+
                 # 1. Disable Stealth for a clean run (sometimes stealth injection IS the fingerprint)
                 # await stealth_async(page)
 
@@ -335,8 +448,6 @@ class TrafficBot:
                 self.setup_network_logging(page)
 
                 try:
-                    if use_proxy:
-                        await self.check_proxy_ip(page)
 
                     print(f"Navigating to {Config.TARGET_URL}")
                     await page.goto(
