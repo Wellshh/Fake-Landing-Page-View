@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "fake-analytics"
+version = "0.1.0"
+description = "A tool to fake website analytics"
+authors = ["Jules"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = ">=3.10,<4.0"
+playwright = "^1.56.0"
+python-dotenv = "^1.2.1"
+fake-useragent = "^2.2.0"
+click = "^8.3.1"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+fake-analytics = "fake_analytics.cli:cli"
