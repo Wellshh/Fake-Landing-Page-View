@@ -115,6 +115,7 @@ ignore = [
     "PLR0913",  # Too many arguments
     "PLR2004",  # Magic value used in comparison
     "PLE1205",  # Too many arguments for logging format (custom logger, not stdlib logging)
+    "RUF005",
 ]
 
 [tool.ruff.format]
