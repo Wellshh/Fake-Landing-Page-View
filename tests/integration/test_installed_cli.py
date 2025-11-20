@@ -9,6 +9,7 @@ These tests should be run after installing the package with:
 Run with: pytest tests/integration -v
 """
 
+import shutil
 import subprocess
 import sys
 
@@ -35,13 +36,47 @@ class TestInstalledCLI:
         else:
             return result.returncode == 0
 
+    def get_cli_command(self):
+        """Get the CLI command to run, handling Windows PATH issues"""
+        # Try to find the executable in PATH
+        cli_exe = shutil.which("fake-analytics")
+        if cli_exe:
+            return [cli_exe]
+
+        # On Windows, also try with .exe extension
+        if sys.platform == "win32":
+            cli_exe = shutil.which("fake-analytics.exe")
+            if cli_exe:
+                return [cli_exe]
+
+        # Fallback: use Python module approach
+        # Try both possible module paths
+        try:
+            # First try the direct module path
+            result = subprocess.run(
+                [sys.executable, "-m", "fake_analytics.cli", "--version"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            if result.returncode == 0:
+                return [sys.executable, "-m", "fake_analytics.cli"]
+        except Exception:
+            pass
+
+        # If all else fails, return the original command and let it fail
+        # (the test will handle the error appropriately)
+        return ["fake-analytics"]
+
     def test_cli_version_command_installed(self):
         """Test: CLI --version works when package is installed"""
         if not self.is_package_installed():
             pytest.skip("Package not installed. Run: pip install -e . or poetry install")
 
+        cmd = self.get_cli_command() + ["--version"]
         result = subprocess.run(
-            ["fake-analytics", "--version"],
+            cmd,
             capture_output=True,
             text=True,
             timeout=10,
@@ -58,8 +93,9 @@ class TestInstalledCLI:
         if not self.is_package_installed():
             pytest.skip("Package not installed. Run: pip install -e . or poetry install")
 
+        cmd = self.get_cli_command() + ["--help"]
         result = subprocess.run(
-            ["fake-analytics", "--help"],
+            cmd,
             capture_output=True,
             text=True,
             timeout=10,
@@ -74,8 +110,9 @@ class TestInstalledCLI:
         if not self.is_package_installed():
             pytest.skip("Package not installed. Run: pip install -e . or poetry install")
 
+        cmd = self.get_cli_command() + ["run", "--help"]
         result = subprocess.run(
-            ["fake-analytics", "run", "--help"],
+            cmd,
             capture_output=True,
             text=True,
             timeout=10,
@@ -90,8 +127,9 @@ class TestInstalledCLI:
         if not self.is_package_installed():
             pytest.skip("Package not installed. Run: pip install -e . or poetry install")
 
+        cmd = self.get_cli_command() + ["discover", "--help"]
         result = subprocess.run(
-            ["fake-analytics", "discover", "--help"],
+            cmd,
             capture_output=True,
             text=True,
             timeout=10,
@@ -108,8 +146,9 @@ class TestInstalledCLI:
             pytest.skip("Package not installed. Run: pip install -e . or poetry install")
 
         # Use a simple test page
+        cmd = self.get_cli_command() + ["discover", "--url", "https://httpbin.org/forms/post"]
         result = subprocess.run(
-            ["fake-analytics", "discover", "--url", "https://httpbin.org/forms/post"],
+            cmd,
             capture_output=True,
             text=True,
             timeout=30,
