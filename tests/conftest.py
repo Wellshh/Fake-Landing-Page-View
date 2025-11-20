@@ -19,6 +19,9 @@ from src.fake_analytics.logger import BotLogger
 def temp_dir():
     """Create a temporary directory for test files"""
     tmp_dir = tempfile.mkdtemp(prefix="fake_analytics_test_")
+    os.makedirs(tmp_dir, exist_ok=True)
+    assert os.path.exists(tmp_dir), f"Failed to create temp directory: {tmp_dir}"
+    assert os.path.isdir(tmp_dir), f"Temp path is not a directory: {tmp_dir}"
     yield tmp_dir
     shutil.rmtree(tmp_dir, ignore_errors=True)
 
@@ -46,6 +49,7 @@ def sample_config_data():
 @pytest.fixture
 def sample_config_file(temp_dir, sample_config_data):
     """Create a temporary JSON config file"""
+    os.makedirs(temp_dir, exist_ok=True)
     config_path = os.path.join(temp_dir, "test_config.json")
     with open(config_path, "w") as f:
         json.dump(sample_config_data, f)
@@ -75,6 +79,8 @@ def sample_csv_file(temp_dir, sample_csv_data):
     """Create a temporary CSV file with user data"""
     import csv
 
+    # Ensure directory exists before creating file
+    os.makedirs(temp_dir, exist_ok=True)
     csv_path = os.path.join(temp_dir, "test_users.csv")
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=["full_name", "email", "company"])
