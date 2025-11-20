@@ -9,6 +9,7 @@ These tests should be run after installing the package with:
 Run with: pytest tests/integration -v
 """
 
+import shutil
 import subprocess
 import sys
 
@@ -35,22 +36,45 @@ class TestInstalledCLI:
         else:
             return result.returncode == 0
 
+    def get_cli_command(self):
+        """Get the CLI command to run, handling Windows PATH issues"""
+        cli_exe = shutil.which("fake-analytics")
+        if cli_exe:
+            return [cli_exe]
+        if sys.platform == "win32":
+            cli_exe = shutil.which("fake-analytics.exe")
+            if cli_exe:
+                return [cli_exe]
+
+        try:
+            result = subprocess.run(
+                [sys.executable, "-m", "fake_analytics.cli", "--version"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            if result.returncode == 0:
+                return [sys.executable, "-m", "fake_analytics.cli"]
+        except Exception:
+            pass
+        return ["fake-analytics"]
+
     def test_cli_version_command_installed(self):
         """Test: CLI --version works when package is installed"""
         if not self.is_package_installed():
             pytest.skip("Package not installed. Run: pip install -e . or poetry install")
 
+        cmd = self.get_cli_command() + ["--version"]
         result = subprocess.run(
-            ["fake-analytics", "--version"],
+            cmd,
             capture_output=True,
             text=True,
             timeout=10,
             check=False,
         )
 
-        # Should succeed when package is installed
         assert result.returncode == 0
-        # Output should contain version info
         assert len(result.stdout) > 0 or len(result.stderr) > 0
 
     def test_cli_help_command_installed(self):
@@ -58,8 +82,9 @@ class TestInstalledCLI:
         if not self.is_package_installed():
             pytest.skip("Package not installed. Run: pip install -e . or poetry install")
 
+        cmd = self.get_cli_command() + ["--help"]
         result = subprocess.run(
-            ["fake-analytics", "--help"],
+            cmd,
             capture_output=True,
             text=True,
             timeout=10,
@@ -74,8 +99,9 @@ class TestInstalledCLI:
         if not self.is_package_installed():
             pytest.skip("Package not installed. Run: pip install -e . or poetry install")
 
+        cmd = self.get_cli_command() + ["run", "--help"]
         result = subprocess.run(
-            ["fake-analytics", "run", "--help"],
+            cmd,
             capture_output=True,
             text=True,
             timeout=10,
@@ -90,8 +116,9 @@ class TestInstalledCLI:
         if not self.is_package_installed():
             pytest.skip("Package not installed. Run: pip install -e . or poetry install")
 
+        cmd = self.get_cli_command() + ["discover", "--help"]
         result = subprocess.run(
-            ["fake-analytics", "discover", "--help"],
+            cmd,
             capture_output=True,
             text=True,
             timeout=10,
@@ -107,17 +134,20 @@ class TestInstalledCLI:
         if not self.is_package_installed():
             pytest.skip("Package not installed. Run: pip install -e . or poetry install")
 
-        # Use a simple test page
+        cmd = self.get_cli_command() + [
+            "discover",
+            "--url",
+            "https://httpbin.org/forms/post",
+        ]
         result = subprocess.run(
-            ["fake-analytics", "discover", "--url", "https://httpbin.org/forms/post"],
+            cmd,
             capture_output=True,
             text=True,
             timeout=30,
             input="n\n",
-            check=False,  # Answer "no" to config generation prompt
+            check=False,
         )
 
-        # Should complete (might succeed or fail due to page structure, but shouldn't crash)
         assert result.returncode in [0, 1]
 
 
@@ -161,7 +191,6 @@ class TestCLIWithPoetry:
         if not self.is_poetry_available():
             pytest.skip("Poetry not available")
 
-        # Run a simple unit test to verify pytest works
         result = subprocess.run(
             [
                 "poetry",
@@ -176,7 +205,6 @@ class TestCLIWithPoetry:
             check=False,
         )
 
-        # Should pass
         assert result.returncode == 0
         assert "PASSED" in result.stdout or "passed" in result.stdout
 
@@ -188,9 +216,16 @@ class TestPackageStructure:
     def test_package_imports(self):
         """Test: All main modules can be imported"""
         try:
-            from src.fake_analytics import actions, cli, config, core, data, discovery, logger
+            from src.fake_analytics import (
+                actions,
+                cli,
+                config,
+                core,
+                data,
+                discovery,
+                logger,
+            )
 
-            # All imports should succeed
             assert config is not None
             assert data is not None
             assert actions is not None
